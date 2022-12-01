@@ -1,0 +1,82 @@
+# run settings
+run:
+  resolution: [256,256] #[width,height] in pixels
+  view_angle: 16 #in degrees, horizontal view angle
+  fps: 35
+  gpu: 0 #if using cuda, enter gpu nr here (e.g. 0)
+  print_stats: False #print simulator values for sanity check
+  seed: 42
+  dtype: float32
+  use_gaussian_lut: False # Whether to approximate Gaussian activation with a
+                          # look-up table.
+  batch_size: 0  # Set to zero when simulator is not used for computational optimization
+
+# display specs to accurately diplay sizes in dva
+display:
+  screen_resolution: [1920,1080] #width & height in pixels
+  #screen_size: [294,166] #width & height in mm
+  screen_diagonal: 13.3 #inches
+  dist_to_screen: 600 # eyes to screen in mm
+
+# for sampling from images/video
+sampling:
+  RF_size: 0.4 #mm cortex
+  use_relative_RF_size: True
+  filter: sobel #canny, sobel or none
+  T_high: 120 # in case of canny filtering: the high threshold
+  sampling_method: receptive_fields #receptive_fields or center
+  receptive_fields:
+    threshold_low: 1e-5
+    threshold_high: 5e-5
+    stimulus_scale: 1e-4
+  center:
+    threshold: 1e-4
+    stimulus_scale: 8e-5
+
+# settings for electrode coords to visual field coords
+cortex_model:
+  model: dipole
+  k: 17.3
+  a: 0.75
+  b: 120
+  alpha: 0.95
+  dropout_rate: 0.2
+  noise_scale: 0.4
+
+# habituation and other temporal dynamics
+temporal_dynamics:
+  trace_increase_rate: 13.95528162 # how much the trace increases when there is input, per second
+  activation_decay_per_second: 0.00012340980408667956 # The decay of tissue activation per second
+  trace_decay_per_second: 0.99949191 # The decay of the memory trace, per second
+
+# current strength effect on size (Bosking et al., 2017),
+size:
+  size_equation: sqrt #which equation to use for current->size computations. sqrt or sigmoid
+  MD: 0.7  # predicted maximum diameter of activated cortex in mm
+  I_half: 40 # mu-A
+  slope_size: 0.08 # slope of size saturation curve in mm/mu-A
+  current_spread: 675.e-6 #A/mm2
+  radius_to_sigma: 0.5 #circle to gaussian factor, sigma = r/2
+
+# sigmoid on activation
+brightness_saturation:
+  cps_half: 1.057631326853325e-07 # calibrated on fig. 6A Fernández et al., (2021)
+  slope_brightness: 19152642.500946816 # calibrated on fig. 6A/B Fernández et al., (2021)
+
+# Stimulation threshold
+thresholding:
+  use_threshold: True
+  rheobase: 23.9e-6 # The minimal current (Ampere) for infinite stimulation duration. Is used as the constant leak current.
+  activation_threshold: 9.141886000943878e-08 # Threshold of tissue activation for the perception of phosphenes
+  activation_threshold_sd: 6.715877869833961e-08 # Standard deviation of the tissue activation threshold (for random initialization)
+
+# Pulse width (pw), frequency (freq) default values, in case they aren't specified in the input
+default_stim:
+  relative_stim_duration: 1 # range: [0-1]. stim_duration = rel_stim_dur * frame_duration
+  pw_default: 170.e-6 #microS
+  freq_default: 300 #Hertz
+
+# Gabor filters
+gabor:
+  gabor_filtering: False
+  gamma: 1.5

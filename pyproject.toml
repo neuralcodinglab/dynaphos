@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynaphos"
+version = "0.1"
+authors = [
+  { name="Maureen van der Grinten", email="maureen.vandergrinten@ru.nl" },
+  { name="Jaap de Ruyter", email="jaap.deruyter@donders.ru.nl" },
+  { name="Bodo Rueckauer", email="bodo.rueckauer@donders.ru.nl" },
+]
+description = "Fully differentiable and biologically plausible simulation of prosthetic vision."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/deruyter92/dynaphos.git"
+
+[tool.setuptools]
+packages = ["dynaphos"]

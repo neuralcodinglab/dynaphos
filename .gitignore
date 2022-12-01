@@ -1,0 +1,13 @@
+.ipynb_checkpoints
+__pycache__
+
+clips/
+**[Aa]rchived
+.idea/
+
+/dist/
+/dynaphos.egg-info/
+*.mp4
+*.avi
+/scratch/
+*.pickle
