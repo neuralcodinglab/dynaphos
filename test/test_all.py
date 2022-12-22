@@ -171,7 +171,7 @@ class TestFunctional:
     def test_brightness(self, params, rng):
         fps = 500
         stimulus_sequence = np.concatenate([np.ones(83), np.zeros(417)])
-        data = pd.read_csv('../experiments/data/Fernandez_2021_fig6A.csv')
+        data = pd.read_csv('data/Fernandez_2021_fig6A.csv')
 
         params['cortex_model']['dropout_rate'] = 0
         params['default_stim']['pw_default'] = 170e-6
@@ -192,7 +192,8 @@ class TestFunctional:
             states = []
             for i, stim in enumerate(stimulus_sequence):
                 simulator.update(electrodes * stim * amplitude)
-                states.append(simulator.get_state())
+                state = {key: val.item() for key, val in simulator.get_state().items()}  # state as numpy
+                states.append(state)
                 states[-1]['amplitude'] = stim * amplitude
                 states[-1]['stim_condition'] = stim_condition
                 states[-1]['time'] = i / fps
@@ -208,15 +209,10 @@ class TestFunctional:
                 results.loc[results.stim_condition == i, 'brightness'].max())
             activation.append(
                 results.loc[results.stim_condition == i, 'activation'].max())
-
         activation = np.array(activation)
         brightness = np.array(brightness)
-        activation_expected = [0, 0, 1.31091218e-08, 3.45994842e-08,
-                               5.60898421e-08, 7.75802178e-08, 9.90705757e-08,
-                               1.20560927e-07, 1.42051320e-07, 1.63541699e-07]
-        brightness_expected = [0.11645608, 0.11645608, 0.17496586, 0.31622526,
-                               0.50212157, 0.68743336, 0.82747084, 0.91273272,
-                               0.95799798, 0.98029137]
+        activation_expected = np.load('data/fernandez_activation_fit.npy')
+        brightness_expected = np.load('data/fernandez_brightness_fit.npy')
         assert np.isclose(activation, activation_expected).all()
         assert np.isclose(brightness, brightness_expected).all()
 
@@ -251,13 +247,17 @@ class TestFunctional:
         states = []
         for i, stimulus in enumerate(to_tensor(stim_sequences, **data_kwargs)):
             simulator.update(stimulus)
-            states.append(simulator.get_state())
+            state = {key: val.item() for key, val in simulator.get_state().items()}  # state as numpy
+            states.append(state)
 
         results = pd.DataFrame(states)
         results['stimulation'] = stim_sequences
         results['fps'] = fps
         results['time'] = results.index.copy() / fps
 
-        results_expected = pd.read_pickle('data/results_dynamics')
+        # TODO: remove
+        results.to_pickle('data/results_dynamics.pkl')
+
+        results_expected = pd.read_pickle('data/results_dynamics.pkl')
         assert np.isclose(results.to_numpy(),
                           results_expected.to_numpy()).all()
