@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/deruyter92/dynaphos.git"
+"Homepage" = "https://github.com/neuralcodinglab/dynaphos.git"
 
 [tool.setuptools]
 packages = ["dynaphos"]
