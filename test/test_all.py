@@ -254,10 +254,6 @@ class TestFunctional:
         results['stimulation'] = stim_sequences
         results['fps'] = fps
         results['time'] = results.index.copy() / fps
-
-        # TODO: remove
-        results.to_pickle('data/results_dynamics.pkl')
-
         results_expected = pd.read_pickle('data/results_dynamics.pkl')
         assert np.isclose(results.to_numpy(),
                           results_expected.to_numpy()).all()
