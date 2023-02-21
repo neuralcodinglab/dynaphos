@@ -20,7 +20,7 @@ display:
 
 # for sampling from images/video
 sampling:
-  RF_size: 0.4 #mm cortex
+  RF_size: 0.5 # millimeters of cortical surface
   use_relative_RF_size: True
   filter: sobel #canny, sobel or none
   T_high: 120 # in case of canny filtering: the high threshold

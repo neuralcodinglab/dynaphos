@@ -11,7 +11,6 @@ from dynaphos.utils import (to_tensor, get_data_kwargs, get_truncated_normal,
                             get_deg2pix_coeff, set_deterministic,
                             print_stats, sigmoid, to_numpy, Map)
 
-
 class State:
     def __init__(self, params: dict, shape: Tuple[int, ...],
                  verbose: Optional[bool] = False):
@@ -411,14 +410,15 @@ class GaussianSimulator:
     def sample_centers(self, x: torch.Tensor) -> torch.Tensor:
         return x.flatten(-2)[..., self.phosphene_centers]
 
+    def sample_receptive_fields(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.amax(self.sampling_mask * x, dim=(-2,-1))
 
     @property
     def sampling_mask(self):
         if self._sampling_mask is None:
             params = self.params['sampling']
             if self._sampling_method == 'receptive_fields':
-                threshold = (float(params['RF_size']) * self.magnification)
-                self._sampling_mask = torch.less(self.phosphene_maps, threshold).float()
+                self._sampling_mask = torch.less(self.phosphene_maps, params['RF_size'] / self.magnification)
             elif self._sampling_method == 'center':
                 p_map = self.phosphene_maps
                 flat_idx = torch.arange(p_map.shape[0], device=p_map.device) * p_map.shape[-2] * p_map.shape[-1]
@@ -437,33 +437,16 @@ class GaussianSimulator:
                 self._zero)
         return self._stimulus_init
 
-    def _sample_receptive_fields(self, active_pixels: torch.Tensor
-                                 ) -> torch.Tensor:
-        sample_params = self.params['sampling']['receptive_fields']
-        threshold_low = float(sample_params['threshold_low'])
-        threshold_high = float(sample_params['threshold_high'])
-
-        active_per_phosphene = active_pixels.sum(dim=(1, 2))
-
-        stimulus = self.stimulus_init * active_per_phosphene
-        stimulus[(stimulus > threshold_low) &
-                 (stimulus < threshold_high)] = threshold_high
-        return stimulus
-
-    def _sample_centers(self, active_pixels: torch.Tensor) -> torch.Tensor:
-        active_per_phosphene = torch.amax(active_pixels, dim=(1, 2))
-        return torch.mul(active_per_phosphene, self.stimulus_scale)
-
-    def sample_stimulus(self, image: Union[np.ndarray, torch.Tensor]
+    def sample_stimulus(self, activation_mask: Union[np.ndarray, torch.Tensor]
                         ) -> torch.Tensor:
-        if isinstance(image, np.ndarray):
-            image = self.to_tensor(image)
-        image = to_n_dim(image, 3)
-        image = scale_image(image, 1 / 255)
-        active_pixels = self.sampling_mask * image
+        if isinstance(activation_mask, np.ndarray):
+            activation_mask = self.to_tensor(activation_mask)
+        # activation_mask = to_n_dim(activation_mask, 3)
+        activation_mask = scale_image(activation_mask, 1 / 255)
         if self._sampling_method == 'receptive_fields':
-            return self._sample_receptive_fields(active_pixels)
+            electrode_activation = self.sample_receptive_fields(activation_mask)
         elif self._sampling_method == 'center':
-            return self._sample_centers(active_pixels)
+            electrode_activation = self.sample_centers(activation_mask)  # electrode activations between 0 and 1
         else:
             raise NotImplementedError
+        return torch.mul(electrode_activation, self.stimulus_scale) # stim. current = scale * electrode activations
