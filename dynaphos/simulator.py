@@ -406,7 +406,6 @@ class GaussianSimulator:
             self._phosphene_centers = self.phosphene_maps.flatten(start_dim=1).argmin(dim=-1)
         return self._phosphene_centers
 
-    # TODO: keep only this implementation?
     def sample_centers(self, x: torch.Tensor) -> torch.Tensor:
         """Extracts the value of the activation mask at the center pixel of each phosphene"""
         # instead of multiplying with sampling mask, values are retrieved using the indices of the center pixels
