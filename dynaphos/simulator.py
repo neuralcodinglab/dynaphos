@@ -212,7 +212,6 @@ class GaussianSimulator:
         self._sampling_method = params_sampling['sampling_method']
         self.stimulus_scale = float(
             params_sampling[self._sampling_method]['stimulus_scale'])
-        self._stimulus_init = None
         self._sqrt_pi_inv = 1 / torch.sqrt(self.to_tensor(torch.pi))
         self._pulse_width = (self.params['default_stim']['pw_default'] *
                              torch.ones(self.shape, **self.data_kwargs))
@@ -402,24 +401,31 @@ class GaussianSimulator:
 
     @property
     def phosphene_centers(self):
+        """Indices (flat indexing) of the phosphene centers"""
         if self._phosphene_centers is None:
             self._phosphene_centers = self.phosphene_maps.flatten(start_dim=1).argmin(dim=-1)
         return self._phosphene_centers
 
     # TODO: keep only this implementation?
     def sample_centers(self, x: torch.Tensor) -> torch.Tensor:
+        """Extracts the value of the activation mask at the center pixel of each phosphene"""
+        # instead of multiplying with sampling mask, values are retrieved using the indices of the center pixels
         return x.flatten(-2)[..., self.phosphene_centers]
 
     def sample_receptive_fields(self, x: torch.Tensor) -> torch.Tensor:
+        """Extracts the maximum value of activation mask x within the 'receptive field' of each phosphene"""
         return torch.amax(self.sampling_mask * x, dim=(-2,-1))
 
     @property
     def sampling_mask(self):
+        """Boolean mask (tensor) that defines which pixels are inside the receptive field / center of each phosphene"""
         if self._sampling_mask is None:
             params = self.params['sampling']
             if self._sampling_method == 'receptive_fields':
                 self._sampling_mask = torch.less(self.phosphene_maps, params['RF_size'] / self.magnification)
             elif self._sampling_method == 'center':
+                # Sampling mask is not used anymore in 'center' mode (pixels are directly retrieved using indexing),
+                # but still implemented here for backwards compatibility
                 p_map = self.phosphene_maps
                 flat_idx = torch.arange(p_map.shape[0], device=p_map.device) * p_map.shape[-2] * p_map.shape[-1]
                 self._sampling_mask = torch.zeros_like(p_map)
@@ -428,21 +434,14 @@ class GaussianSimulator:
                 raise NotImplementedError
         return self._sampling_mask
 
-    @property
-    def stimulus_init(self):
-        if self._stimulus_init is None:
-            phosphene_sizes = self._sampling_mask.sum(axis=(1, 2))
-            self._stimulus_init = torch.where(
-                phosphene_sizes.bool(), self.stimulus_scale / phosphene_sizes,
-                self._zero)
-        return self._stimulus_init
-
     def sample_stimulus(self, activation_mask: Union[np.ndarray, torch.Tensor]
                         ) -> torch.Tensor:
+        """Takes an activation mask image (or batch of images: N, 1, H, W) that indicates where phosphenes should be
+        activated, and returns the electrode stimulation currents (stimulation tensor)"""
         if isinstance(activation_mask, np.ndarray):
             activation_mask = self.to_tensor(activation_mask)
-        # activation_mask = to_n_dim(activation_mask, 3)
-        activation_mask = scale_image(activation_mask, 1 / 255)
+            activation_mask = scale_image(activation_mask, 1 / 255)
+        # activation_mask = to_n_dim(activation_mask, 3) #JR 21-02-2023: disabled to accept varying input dimensions
         if self._sampling_method == 'receptive_fields':
             electrode_activation = self.sample_receptive_fields(activation_mask)
         elif self._sampling_method == 'center':
