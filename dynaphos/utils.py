@@ -179,6 +179,15 @@ class Map:
         self._z = self._z[indexes]
         self._r = self._r[indexes]
         self._phi = self._phi[indexes]
+        
+    def flip(self, hor=False, vert=False):
+        z = self._z
+        if hor:
+            z.real *= -1
+        if vert:
+            z.imag *= -1
+        return Map(z=z)
+
 
 
 def sigmoid(x: torch.Tensor) -> torch.Tensor:

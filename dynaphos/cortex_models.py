@@ -29,12 +29,8 @@ def get_visual_field_coordinates_from_cortex(
     cortex_to_visual_field = get_mapping_from_cortex_to_visual_field(params)
     z = cortex_to_visual_field(cartesian_to_complex(x, y))
     z = remove_out_of_view(z)
-
-    # Flip y-coordinates to account for upside-down orientation of visual
-    # field.
-    z.imag *= -1
-
-    return Map(z=z)
+    
+    return Map(z=z).flip(hor=True, vert=True) # Flip x and y-coordinates to account for upside-down orientation of visual
 
 
 def get_visual_field_coordinates_from_cortex_full(
