@@ -210,6 +210,7 @@ class GaussianSimulator:
         self._sampling_mask = None
         self._phosphene_centers = None
         params_sampling = self.params['sampling']
+        params.min_angle = 1e-3
         self._sampling_method = params_sampling['sampling_method']
         self.stimulus_scale = float(
             params_sampling[self._sampling_method]['stimulus_scale'])
