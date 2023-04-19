@@ -71,7 +71,9 @@ def get_visual_field_coordinates_probabilistically(
         rng = np.random.default_rng()
 
     max_r = params['run']['view_angle'] / 2
-    valid_ecc = np.linspace(1e-3, max_r, 1000)
+    min_r = params['run']['min_angle'] / 2
+    # valid_ecc = np.linspace(1e-3, max_r, 1000)
+    valid_ecc = np.linspace(min_r, max_r, 1000)
     weights = get_cortical_magnification(valid_ecc, params['cortex_model'])
 
     probs = weights / np.sum(weights)
