@@ -234,9 +234,11 @@ class GaussianSimulator:
         self.trace.reset()
         self.sigma.reset()
 
-    def gabor_orientation(self) -> torch.Tensor:
+    def gabor_orientation(self, num_phosphenes=None) -> torch.Tensor:
         """Rotation of ellipsis."""
-        return torch.mul(2 * math.pi, torch.rand((self.num_phosphenes, 1, 1)))
+        if num_phosphenes is None:
+            num_phosphenes = self.num_phosphenes
+        return torch.mul(2 * math.pi, torch.rand((num_phosphenes, 1, 1), **self.data_kwargs))
 
     def generate_phosphene_maps(self, coordinates: Map,
                                 remove_invalid: Optional[bool] = True
@@ -288,7 +290,7 @@ class GaussianSimulator:
         y = grid_y - y_offset
 
         if self.params['gabor']['gabor_filtering']:
-            theta = self.gabor_orientation()
+            theta = self.gabor_orientation(num_phosphenes)
             y_rotated = -x * torch.sin(theta) + y * torch.cos(theta)
             x_rotated = x * torch.cos(theta) + y * torch.sin(theta)
             gamma = self.params['gabor']['gamma']
