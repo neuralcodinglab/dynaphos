@@ -164,12 +164,14 @@ class Sigma(State):
 
 class GaussianSimulator:
     def __init__(self, params: dict, coordinates: Map,
-                 rng: Optional[np.random.Generator] = None):
+                 rng: Optional[np.random.Generator] = None, 
+                 theta: Optional[np.ndarray] = None):
         """initialize a simulator with provided parameters settings,
         given phosphene locations in polar coordinates
 
         :param params: dict of dicts with all setting parameters.
         :param coordinates: Eccentricities and angles of phosphenes.
+        :param theta: Orientations for gabor filtering (if 'gabor_filtering' set to True)
         :param rng: Numpy random number generator.
         """
 
@@ -182,7 +184,7 @@ class GaussianSimulator:
         self.deg2pix_coeff = get_deg2pix_coeff(self.params['run'])
 
         self.phosphene_maps = \
-            self.generate_phosphene_maps(coordinates)
+            self.generate_phosphene_maps(coordinates, theta=theta)
 
         batch_size = self.params['run']['batch_size']
         if batch_size != 0:
@@ -234,68 +236,72 @@ class GaussianSimulator:
         self.trace.reset()
         self.sigma.reset()
 
-    def gabor_orientation(self, num_phosphenes=None) -> torch.Tensor:
+    def gabor_rotation(self, x, y, theta=None) -> torch.Tensor:
         """Rotation of ellipsis."""
-        if num_phosphenes is None:
-            num_phosphenes = self.num_phosphenes
-        return torch.mul(2 * math.pi, torch.rand((num_phosphenes, 1, 1), **self.data_kwargs))
+        num_phosphenes = len(x)
+        if theta is None:
+            theta = torch.mul(2 * math.pi, torch.rand((num_phosphenes, 1, 1), **self.data_kwargs)) # Random rotation
+        else:
+            theta = torch.reshape(self.to_tensor(theta), (-1, 1, 1))
+        y_rotated = -x * torch.sin(theta) + y * torch.cos(theta)
+        x_rotated = x * torch.cos(theta) + y * torch.sin(theta)
+        gamma = self.params['gabor']['gamma']
+        phosphene_maps = torch.sqrt(x_rotated ** 2 + y_rotated ** 2 * gamma ** 2)
+        return phosphene_maps
 
     def generate_phosphene_maps(self, coordinates: Map,
-                                remove_invalid: Optional[bool] = True
+                                remove_invalid: Optional[bool] = True,
+                                theta: Optional[np.ndarray] = None,
                                 ) -> torch.Tensor:
         """Generate phosphene maps (for each phosphene distance to each pixel).
 
         :param coordinates: Coordinates of phosphenes.
         :param remove_invalid: Whether to remove phosphenes out of view.
+        :param theta: Orientations for gabor filtering (if 'gabor_filtering' set to True)
         :return: an (n_phosphenes x resolution[0] x resolution[1]) array
         describing distances from phosphene locations
         """
 
-        r, phi = coordinates.polar
-        r = torch.reshape(self.to_tensor(r), (-1, 1, 1))
-        phi = torch.reshape(self.to_tensor(phi), (-1, 1, 1))
+        # Phosphene coordinates
+        x_coords, y_coords = coordinates.cartesian
+        x_coords = torch.reshape(self.to_tensor(x_coords), (-1, 1, 1))
+        y_coords = torch.reshape(self.to_tensor(y_coords), (-1, 1, 1))
 
-        # Convert to cartesian coordinates.
+        # x,y limits of the simulation
         res_x, res_y = self.params['run']['resolution']
-        x_max, y_max = [self.params['run']['view_angle'],]*2
-
-        # Offsets (in degrees of visual angle).
-        x_offset = x_max / 2 + torch.mul(r, torch.cos(phi))
-        y_offset = y_max / 2 + torch.mul(r, torch.sin(phi))
-
+        x_org, y_org = self.params['run']['origin']
+        hemi_fov = self.params['run']['view_angle'] / 2
+        x_min, x_max = x_org - hemi_fov, x_org + hemi_fov
+        y_min, y_max = y_org - hemi_fov, y_org + hemi_fov
+     
         if remove_invalid:
             # Check if phosphene locations are inside of view angle.
             valid = (
-                torch.ge(x_offset, 0) & torch.less(x_offset, x_max) &
-                torch.ge(y_offset, 0) & torch.less(y_offset, y_max)).ravel()
-            num_total = len(x_offset)
+                torch.ge(x_coords, x_min) & torch.less(x_coords, x_max) &
+                torch.ge(y_coords, y_min) & torch.less(y_coords, y_max)).ravel()
+            num_total = len(x_coords)
             num_valid = torch.sum(valid)
             logging.debug(f"{num_total - num_valid} of {num_total} phosphenes "
                           f"are outside of view and will be removed.")
-            x_offset = x_offset[valid]
-            y_offset = y_offset[valid]
+            x_coords = x_coords[valid]
+            y_coords = y_coords[valid]
             coordinates.use_subset(to_numpy(valid))
 
         # Get distance maps to phosphene centres (in degrees of visual angle).
         device = self.data_kwargs['device']
-        num_phosphenes = len(x_offset)
+        num_phosphenes = len(x_coords)
 
-        x = torch.linspace(0,x_max,res_x, device=device)
-        y = torch.linspace(0, y_max, res_y, device=device)
+        x_range = torch.linspace(x_min, x_max, res_x, device=device)
+        y_range = torch.linspace(y_min, y_max, res_y, device=device)
 
-        grid = torch.meshgrid(x, y, indexing='xy')
+        grid = torch.meshgrid(x_range, y_range, indexing='xy')
         grid_x = torch.tile(grid[0], (num_phosphenes, 1, 1))
         grid_y = torch.tile(grid[1], (num_phosphenes, 1, 1))
-        x = grid_x - x_offset
-        y = grid_y - y_offset
+        x = grid_x - x_coords
+        y = grid_y - y_coords
 
         if self.params['gabor']['gabor_filtering']:
-            theta = self.gabor_orientation(num_phosphenes)
-            y_rotated = -x * torch.sin(theta) + y * torch.cos(theta)
-            x_rotated = x * torch.cos(theta) + y * torch.sin(theta)
-            gamma = self.params['gabor']['gamma']
-            phosphene_maps = torch.sqrt(x_rotated ** 2 +
-                                        y_rotated ** 2 * gamma ** 2)
+            phosphene_maps = self.gabor_rotation(x, y, theta)
         else:
             phosphene_maps = torch.sqrt(x ** 2 + y ** 2)
 
