@@ -21,18 +21,8 @@ display:
 
 # for sampling from images/video
 sampling:
-  RF_size: 0.4 #mm cortex
-  use_relative_RF_size: True
-  filter: sobel #canny, sobel or none
-  T_high: 120 # in case of canny filtering: the high threshold
   sampling_method: receptive_fields #receptive_fields or center
-  receptive_fields:
-    threshold_low: 1e-5
-    threshold_high: 5e-5
-    stimulus_scale: 1e-4
-  center:
-    threshold: 1e-4
-    stimulus_scale: 8e-5
+  RF_size: 0.5 # millimeters of cortical surface (when sampling receptive fields)
 
 # settings for electrode coords to visual field coords
 cortex_model:

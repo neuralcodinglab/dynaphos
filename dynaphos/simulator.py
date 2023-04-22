@@ -11,7 +11,6 @@ from dynaphos.utils import (to_tensor, get_data_kwargs, get_truncated_normal,
                             get_deg2pix_coeff, set_deterministic,
                             print_stats, sigmoid, to_numpy, Map)
 
-
 class State:
     def __init__(self, params: dict, shape: Tuple[int, ...],
                  verbose: Optional[bool] = False):
@@ -165,12 +164,14 @@ class Sigma(State):
 
 class GaussianSimulator:
     def __init__(self, params: dict, coordinates: Map,
-                 rng: Optional[np.random.Generator] = None):
+                 rng: Optional[np.random.Generator] = None, 
+                 theta: Optional[np.ndarray] = None):
         """initialize a simulator with provided parameters settings,
         given phosphene locations in polar coordinates
 
         :param params: dict of dicts with all setting parameters.
         :param coordinates: Eccentricities and angles of phosphenes.
+        :param theta: Orientations for gabor filtering (if 'gabor_filtering' set to True)
         :param rng: Numpy random number generator.
         """
 
@@ -183,7 +184,7 @@ class GaussianSimulator:
         self.deg2pix_coeff = get_deg2pix_coeff(self.params['run'])
 
         self.phosphene_maps = \
-            self.generate_phosphene_maps(coordinates)
+            self.generate_phosphene_maps(coordinates, theta=theta)
 
         batch_size = self.params['run']['batch_size']
         if batch_size != 0:
@@ -212,9 +213,6 @@ class GaussianSimulator:
         params_sampling = self.params['sampling']
         params.min_angle = 1e-3
         self._sampling_method = params_sampling['sampling_method']
-        self.stimulus_scale = float(
-            params_sampling[self._sampling_method]['stimulus_scale'])
-        self._stimulus_init = None
         self._sqrt_pi_inv = 1 / torch.sqrt(self.to_tensor(torch.pi))
         self._pulse_width = (self.params['default_stim']['pw_default'] *
                              torch.ones(self.shape, **self.data_kwargs))
@@ -239,66 +237,72 @@ class GaussianSimulator:
         self.trace.reset()
         self.sigma.reset()
 
-    def gabor_orientation(self) -> torch.Tensor:
+    def gabor_rotation(self, x, y, theta=None) -> torch.Tensor:
         """Rotation of ellipsis."""
-        return torch.mul(2 * math.pi, torch.rand((self.num_phosphenes, 1, 1)))
+        num_phosphenes = len(x)
+        if theta is None:
+            theta = torch.mul(2 * math.pi, torch.rand((num_phosphenes, 1, 1), **self.data_kwargs)) # Random rotation
+        else:
+            theta = torch.reshape(self.to_tensor(theta), (-1, 1, 1))
+        y_rotated = -x * torch.sin(theta) + y * torch.cos(theta)
+        x_rotated = x * torch.cos(theta) + y * torch.sin(theta)
+        gamma = self.params['gabor']['gamma']
+        phosphene_maps = torch.sqrt(x_rotated ** 2 + y_rotated ** 2 * gamma ** 2)
+        return phosphene_maps
 
     def generate_phosphene_maps(self, coordinates: Map,
-                                remove_invalid: Optional[bool] = True
+                                remove_invalid: Optional[bool] = True,
+                                theta: Optional[np.ndarray] = None,
                                 ) -> torch.Tensor:
         """Generate phosphene maps (for each phosphene distance to each pixel).
 
         :param coordinates: Coordinates of phosphenes.
         :param remove_invalid: Whether to remove phosphenes out of view.
+        :param theta: Orientations for gabor filtering (if 'gabor_filtering' set to True)
         :return: an (n_phosphenes x resolution[0] x resolution[1]) array
         describing distances from phosphene locations
         """
 
-        r, phi = coordinates.polar
-        r = torch.reshape(self.to_tensor(r), (-1, 1, 1))
-        phi = torch.reshape(self.to_tensor(phi), (-1, 1, 1))
+        # Phosphene coordinates
+        x_coords, y_coords = coordinates.cartesian
+        x_coords = torch.reshape(self.to_tensor(x_coords), (-1, 1, 1))
+        y_coords = torch.reshape(self.to_tensor(y_coords), (-1, 1, 1))
 
-        # Convert to cartesian coordinates.
+        # x,y limits of the simulation
         res_x, res_y = self.params['run']['resolution']
-        x_max, y_max = [self.params['run']['view_angle'],]*2
-
-        # Offsets (in degrees of visual angle).
-        x_offset = x_max / 2 + torch.mul(r, torch.cos(phi))
-        y_offset = y_max / 2 + torch.mul(r, torch.sin(phi))
-
+        x_org, y_org = self.params['run']['origin']
+        hemi_fov = self.params['run']['view_angle'] / 2
+        x_min, x_max = x_org - hemi_fov, x_org + hemi_fov
+        y_min, y_max = y_org - hemi_fov, y_org + hemi_fov
+     
         if remove_invalid:
             # Check if phosphene locations are inside of view angle.
             valid = (
-                torch.ge(x_offset, 0) & torch.less(x_offset, x_max) &
-                torch.ge(y_offset, 0) & torch.less(y_offset, y_max)).ravel()
-            num_total = len(x_offset)
+                torch.ge(x_coords, x_min) & torch.less(x_coords, x_max) &
+                torch.ge(y_coords, y_min) & torch.less(y_coords, y_max)).ravel()
+            num_total = len(x_coords)
             num_valid = torch.sum(valid)
             logging.debug(f"{num_total - num_valid} of {num_total} phosphenes "
                           f"are outside of view and will be removed.")
-            x_offset = x_offset[valid]
-            y_offset = y_offset[valid]
+            x_coords = x_coords[valid]
+            y_coords = y_coords[valid]
             coordinates.use_subset(to_numpy(valid))
 
         # Get distance maps to phosphene centres (in degrees of visual angle).
         device = self.data_kwargs['device']
-        num_phosphenes = len(x_offset)
+        num_phosphenes = len(x_coords)
 
-        x = torch.linspace(0,x_max,res_x, device=device)
-        y = torch.linspace(0, y_max, res_y, device=device)
+        x_range = torch.linspace(x_min, x_max, res_x, device=device)
+        y_range = torch.linspace(y_min, y_max, res_y, device=device)
 
-        grid = torch.meshgrid(x, y, indexing='xy')
+        grid = torch.meshgrid(x_range, y_range, indexing='xy')
         grid_x = torch.tile(grid[0], (num_phosphenes, 1, 1))
         grid_y = torch.tile(grid[1], (num_phosphenes, 1, 1))
-        x = grid_x - x_offset
-        y = grid_y - y_offset
+        x = grid_x - x_coords
+        y = grid_y - y_coords
 
         if self.params['gabor']['gabor_filtering']:
-            theta = self.gabor_orientation()
-            y_rotated = -x * torch.sin(theta) + y * torch.cos(theta)
-            x_rotated = x * torch.cos(theta) + y * torch.sin(theta)
-            gamma = self.params['gabor']['gamma']
-            phosphene_maps = torch.sqrt(x_rotated ** 2 +
-                                        y_rotated ** 2 * gamma ** 2)
+            phosphene_maps = self.gabor_rotation(x, y, theta)
         else:
             phosphene_maps = torch.sqrt(x ** 2 + y ** 2)
 
@@ -404,23 +408,30 @@ class GaussianSimulator:
 
     @property
     def phosphene_centers(self):
+        """Indices (flat indexing) of the phosphene centers"""
         if self._phosphene_centers is None:
             self._phosphene_centers = self.phosphene_maps.flatten(start_dim=1).argmin(dim=-1)
         return self._phosphene_centers
 
-    # TODO: keep only this implementation?
     def sample_centers(self, x: torch.Tensor) -> torch.Tensor:
+        """Extracts the value of the activation mask at the center pixel of each phosphene"""
+        # instead of multiplying with sampling mask, values are retrieved using the indices of the center pixels
         return x.flatten(-2)[..., self.phosphene_centers]
 
+    def sample_receptive_fields(self, x: torch.Tensor) -> torch.Tensor:
+        """Extracts the maximum value of activation mask x within the 'receptive field' of each phosphene"""
+        return torch.amax(self.sampling_mask * x, dim=(-2,-1))
 
     @property
     def sampling_mask(self):
+        """Boolean mask (tensor) that defines which pixels are inside the receptive field / center of each phosphene"""
         if self._sampling_mask is None:
             params = self.params['sampling']
             if self._sampling_method == 'receptive_fields':
-                threshold = (float(params['RF_size']) * self.magnification)
-                self._sampling_mask = torch.less(self.phosphene_maps, threshold).float()
+                self._sampling_mask = torch.less(self.phosphene_maps, params['RF_size'] / self.magnification)
             elif self._sampling_method == 'center':
+                # Sampling mask is not used anymore in 'center' mode (pixels are directly retrieved using indexing),
+                # but still implemented here for backwards compatibility
                 p_map = self.phosphene_maps
                 flat_idx = torch.arange(p_map.shape[0], device=p_map.device) * p_map.shape[-2] * p_map.shape[-1]
                 self._sampling_mask = torch.zeros_like(p_map)
@@ -429,42 +440,18 @@ class GaussianSimulator:
                 raise NotImplementedError
         return self._sampling_mask
 
-    @property
-    def stimulus_init(self):
-        if self._stimulus_init is None:
-            phosphene_sizes = self._sampling_mask.sum(axis=(1, 2))
-            self._stimulus_init = torch.where(
-                phosphene_sizes.bool(), self.stimulus_scale / phosphene_sizes,
-                self._zero)
-        return self._stimulus_init
-
-    def _sample_receptive_fields(self, active_pixels: torch.Tensor
-                                 ) -> torch.Tensor:
-        sample_params = self.params['sampling']['receptive_fields']
-        threshold_low = float(sample_params['threshold_low'])
-        threshold_high = float(sample_params['threshold_high'])
-
-        active_per_phosphene = active_pixels.sum(dim=(1, 2))
-
-        stimulus = self.stimulus_init * active_per_phosphene
-        stimulus[(stimulus > threshold_low) &
-                 (stimulus < threshold_high)] = threshold_high
-        return stimulus
-
-    def _sample_centers(self, active_pixels: torch.Tensor) -> torch.Tensor:
-        active_per_phosphene = torch.amax(active_pixels, dim=(1, 2))
-        return torch.mul(active_per_phosphene, self.stimulus_scale)
-
-    def sample_stimulus(self, image: Union[np.ndarray, torch.Tensor]
+    def sample_stimulus(self, activation_mask: Union[np.ndarray, torch.Tensor]
                         ) -> torch.Tensor:
-        if isinstance(image, np.ndarray):
-            image = self.to_tensor(image)
-        image = to_n_dim(image, 3)
-        image = scale_image(image, 1 / 255)
-        active_pixels = self.sampling_mask * image
+        """Takes an activation mask image (or batch of images: N, 1, H, W) that indicates where phosphenes should be
+        activated, and returns the electrode stimulation currents (stimulation tensor)"""
+        if isinstance(activation_mask, np.ndarray):
+            activation_mask = self.to_tensor(activation_mask)
+            activation_mask = scale_image(activation_mask, 1 / 255)
+        # activation_mask = to_n_dim(activation_mask, 3) #JR 21-02-2023: disabled to accept varying input dimensions
         if self._sampling_method == 'receptive_fields':
-            return self._sample_receptive_fields(active_pixels)
+            electrode_activation = self.sample_receptive_fields(activation_mask)
         elif self._sampling_method == 'center':
-            return self._sample_centers(active_pixels)
+            electrode_activation = self.sample_centers(activation_mask)  # electrode activations between 0 and 1
         else:
             raise NotImplementedError
+        return torch.mul(electrode_activation, self.stimulus_scale) # stim. current = scale * electrode activations
