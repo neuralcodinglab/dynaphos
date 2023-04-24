@@ -2,6 +2,7 @@
 run:
   resolution: [256,256] #[width,height] in pixels
   view_angle: 16 #in degrees, horizontal view angle
+  min_angle: 0.001 #in degrees, minimal eccentricity
   fps: 35
   gpu: 0 #if using cuda, enter gpu nr here (e.g. 0)
   print_stats: False #print simulator values for sanity check
