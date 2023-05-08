@@ -211,7 +211,6 @@ class GaussianSimulator:
         self._sampling_mask = None
         self._phosphene_centers = None
         params_sampling = self.params['sampling']
-        params.min_angle = 1e-3
         self._sampling_method = params_sampling['sampling_method']
         self._sqrt_pi_inv = 1 / torch.sqrt(self.to_tensor(torch.pi))
         self._pulse_width = (self.params['default_stim']['pw_default'] *
