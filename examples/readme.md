@@ -3,6 +3,7 @@
 ### Semantic segmentation example
 
 ![example_video.mp4](example_video.mp4)
+
 Left: video and the semantic segmentation labels (from the [KITTI dataset](https://www.cvlibs.net/datasets/kitti/)).
 Middle: preprocessed image that was used to sample the electrode activations.
 Right: output of the dynaphos phosphene simulator.
