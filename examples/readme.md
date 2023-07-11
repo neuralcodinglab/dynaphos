@@ -2,19 +2,16 @@
 
 ### Semantic segmentation example
 
-<video width="1122" height="374" controls>
-  <source src="example_video.mp4" type="video/mp4">
-</video>
-
+![example_video.mp4](example_video.mp4)
 Left: video and the semantic segmentation labels (from the [KITTI dataset](https://www.cvlibs.net/datasets/kitti/)).
 Middle: preprocessed image that was used to sample the electrode activations.
 Right: output of the dynaphos phosphene simulator.
 
 ### Example videos gaze-contingent processing 
 
-![](example_video_gaze_contingent_object_grabbing.mp4)
+![example_video_gaze_contingent_object_grabbing.mp4](example_video_gaze_contingent_object_grabbing.mp4)
 
-![](example_video_gaze_contingent_walking.mp4)
+![example_video_gaze_contingent_walking.mp4](example_video_gaze_contingent_walking.mp4)
 
 Left: input video. The red circle indicates the gaze-direction of the wearer of the camera.
 Middle: the input video after processing with sobel edge detection (which was used to sample the electrode activations). The electrode activations are created by sampling the gaze-contingent patches (indicated by the circle). 
