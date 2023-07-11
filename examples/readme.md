@@ -2,7 +2,9 @@
 
 ### Semantic segmentation example
 
-![](example_video.mp4)
+<video width="1122" height="374" controls>
+  <source src="example_video.mp4" type="video/mp4">
+</video>
 
 Left: video and the semantic segmentation labels (from the [KITTI dataset](https://www.cvlibs.net/datasets/kitti/)).
 Middle: preprocessed image that was used to sample the electrode activations.
