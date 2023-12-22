@@ -181,7 +181,7 @@ class Map:
         self._phi = self._phi[indexes]
         
     def flip(self, hor=False, vert=False):
-        z = self._z
+        z = np.array(self._z) # copy
         if hor:
             z.real *= -1
         if vert:
