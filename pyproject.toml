@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dynaphos"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
   { name="Maureen van der Grinten", email="maureen.vandergrinten@ru.nl" },
   { name="Jaap de Ruyter", email="jaap.deruyter@donders.ru.nl" },
