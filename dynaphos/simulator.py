@@ -4,6 +4,7 @@ from typing import Optional, Tuple, Union
 import logging
 import numpy as np
 import torch
+import warnings
 
 from dynaphos.cortex_models import get_cortical_magnification
 from dynaphos.image_processing import scale_image, to_n_dim
@@ -439,18 +440,34 @@ class GaussianSimulator:
                 raise NotImplementedError
         return self._sampling_mask
 
-    def sample_stimulus(self, activation_mask: Union[np.ndarray, torch.Tensor]
+    def sample_stimulus(self, activation_mask: Union[np.ndarray, torch.Tensor], rescale=False,
                         ) -> torch.Tensor:
-        """Takes an activation mask image (or batch of images: N, 1, H, W) that indicates where phosphenes should be
-        activated, and returns the electrode stimulation currents (stimulation tensor)"""
+        """Obtain a stimulation vector from an activation mask image that indicates the regional stimulation intensity.
+
+        param activation_mask: Image (or batch of images: N, 1, H, W). The pixel intensities indicate the
+                                stimulation amplitude for each visual region.
+
+        param rescale: If False (default), the pixel intensities indicate the stimulation amplitude in Amperes.
+                        If True, the input pixels (in range [0, 1] or [0, 255]) are mapped to stimulation amplitudes
+                        using the default stimulus scale parameter specified in the params configuration file.
+
+        return: Stimulation tensor with the stimulation amplitudes for each phosphene. """
+
         if isinstance(activation_mask, np.ndarray):
+            dtype = activation_mask.dtype
             activation_mask = self.to_tensor(activation_mask)
-            activation_mask = scale_image(activation_mask, 1 / 255)
-        # activation_mask = to_n_dim(activation_mask, 3) #JR 21-02-2023: disabled to accept varying input dimensions
+            if (dtype == np.dtype('uint8')) or (activation_mask.max() > 1):
+                activation_mask = scale_image(activation_mask, 1 / 255)
         if self._sampling_method == 'receptive_fields':
             electrode_activation = self.sample_receptive_fields(activation_mask)
         elif self._sampling_method == 'center':
             electrode_activation = self.sample_centers(activation_mask)  # electrode activations between 0 and 1
         else:
             raise NotImplementedError
-        return torch.mul(electrode_activation, self.stimulus_scale) # stim. current = scale * electrode activations
+        if rescale:
+            electrode_activation = torch.mul(electrode_activation, self.params['sampling']['stimulus_scale'])
+        elif electrode_activation.max() >= 1e-3:
+            warnings.warn("High values detected! Activation mask not longer rescaled as default behaviour. Please set "
+                          "rescale=True to map pixels in range [0, 1] or [0, 255] to the default stimulus scale.",
+                          category=DeprecationWarning, stacklevel=2)
+        return electrode_activation
