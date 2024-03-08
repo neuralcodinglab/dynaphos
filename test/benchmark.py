@@ -27,7 +27,7 @@ def get_random(resolution, num_phosphenes, num_frames=1000):
     coordinates_visual_field = get_visual_field_coordinates_from_cortex_full(
         params['cortex_model'], coordinates_cortex, rng)
     simulator = GaussianSimulator(params, coordinates_visual_field, rng)
-    frames = torch.mul(torch.rand(shape, **data_kwargs), 255)
+    frames = torch.mul(torch.rand(shape, **data_kwargs), 100e-6) # range [0, 100µA]
 
     stim_sequence = []
     for frame in frames:
@@ -37,7 +37,7 @@ def get_random(resolution, num_phosphenes, num_frames=1000):
 def run_simulation(simulator, stim_sequence):
     for stimulus in stim_sequence:
         simulator(stimulus)
-    
+
 
 def run_single(n=5):
     simulator, stim_sequence = get_random([256, 256], 100, 1000)
