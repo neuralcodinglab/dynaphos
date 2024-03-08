@@ -24,6 +24,8 @@ display:
 sampling:
   sampling_method: receptive_fields #receptive_fields or center
   RF_size: 0.5 # millimeters of cortical surface (when sampling receptive fields)
+  stimulus_scale: 1.e-4 # Only used when the sample_stimulus method is called with 'rescale=True'. The default behaviour
+                       # is no scaling (i.e., the stim amplitude equals the intensity of the sampled image).
 
 # settings for electrode coords to visual field coords
 cortex_model:
@@ -65,7 +67,7 @@ thresholding:
 # Pulse width (pw), frequency (freq) default values, in case they aren't specified in the input
 default_stim:
   relative_stim_duration: 1 # range: [0-1]. stim_duration = rel_stim_dur * frame_duration
-  pw_default: 170.e-6 #microS
+  pw_default: 170.e-6 #Seconds
   freq_default: 300 #Hertz
 
 # Gabor filters

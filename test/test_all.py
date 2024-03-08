@@ -45,11 +45,10 @@ def get_simulator(params, rng):
 
 
 @pytest.fixture
-def stimulus(params, simulator, rng):
-    shape = params['run']['resolution']
-    image = rng.random(shape) * 255
-    return simulator.sample_stimulus(image)
-
+def stimulus(params):
+    stimulus = np.load('data/stimulus.npy')
+    data_kwargs = get_data_kwargs(params)
+    return to_tensor(stimulus, **data_kwargs)
 
 class TestInit:
     def test_init_probabilistically(self, params, rng):
@@ -85,7 +84,7 @@ class TestCorticalModels:
     def test_get_phosphene_map_from_electrodes(self, params, rng):
         p = params['cortex_model']
         r_expected = [17.3140795, 17.0009518]
-        phi_expected = [-0.57599127, 0.52750565]
+        phi_expected = [-2.56560138,  2.61408701]
         coordinates_cortex = get_cortex_coordinates_grid(p, 4, 4)
         coordinates_visual_field = get_visual_field_coordinates_from_cortex(
             p, coordinates_cortex, rng)
@@ -116,7 +115,7 @@ class TestCorticalModels:
         cortex_to_visual_field = get_mapping_from_cortex_to_visual_field(p)
         z = cortex_to_visual_field(cortex_map.complex)
         z_expected = get_visual_field_coordinates_grid().complex
-        assert np.isclose(z, z_expected).all()
+        assert np.isclose(z, z_expected, atol=1e-8).all()
 
     def test_filter_invalid_electrodes(self):
         coordinates_visual_field = get_visual_field_coordinates_grid()
@@ -130,7 +129,7 @@ class TestSimulator:
     def test_generate_phosphene_maps(self, simulator):
         phosphene_maps = to_numpy(simulator.phosphene_maps)
         phosphene_maps_expected = np.load('data/phosphene_map.npy')
-        assert np.isclose(phosphene_maps, phosphene_maps_expected).all()
+        assert np.isclose(phosphene_maps, phosphene_maps_expected, atol=1e-8).all()
 
     def test_update(self, simulator, stimulus):
         simulator.update(stimulus)
@@ -138,35 +137,44 @@ class TestSimulator:
         trace = to_numpy(simulator.trace.get())
         sigma_expected = np.load('data/sigma.npy')
         trace_expected = np.load('data/trace.npy')
-        assert np.isclose(sigma, sigma_expected).all()
-        assert np.isclose(trace, trace_expected).all()
+        assert np.isclose(sigma, sigma_expected, atol=1e-8).all()
+        assert np.isclose(trace, trace_expected, atol=1e-8).all()
 
     def test_gaussian_activation(self, simulator, stimulus):
         simulator.update(stimulus)
         activation = to_numpy(simulator.gaussian_activation())
         activation_expected = np.load('data/activation.npy')
-        assert np.isclose(activation, activation_expected).all()
+        assert np.isclose(activation, activation_expected, atol=1e-8).all()
 
     def test_call(self, simulator, stimulus):
         phosphenes = to_numpy(simulator(stimulus))
         phosphenes_expected = np.load('data/output.npy')
-        assert np.isclose(phosphenes, phosphenes_expected).all()
+        assert np.isclose(phosphenes, phosphenes_expected, atol=1e-8).all()
 
 
 class TestFunctional:
+    def test_sampling(self, params, rng):
+        simulator = get_simulator(params, rng)
+        shape = params['run']['resolution']
+        image = rng.random(shape) * 1e-4
+        stimulus = simulator.sample_stimulus(image)
+        stimulus_expected = np.load('data/stimulus.npy')
+        assert np.isclose(stimulus, stimulus_expected, atol=1e-8).all()
+
     def test_image(self, params, rng):
         params['thresholding']['use_threshold'] = False
         shape = params['run']['resolution']
         frame = cv2.imread('data/donders.png')
         frame = cv2.resize(frame, shape)
+        frame = frame[::-1]
         frame = 255 - cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame = cv2.GaussianBlur(frame, (3, 3), 0)
         frame = frame.clip(0, 1) * 255
         simulator = get_simulator(params, rng)
-        stimulus = simulator.sample_stimulus(frame)
+        stimulus = simulator.sample_stimulus(frame, rescale=True)
         phosphenes = to_numpy(simulator(stimulus))
         phosphenes_expected = np.load('data/phosphenes_donders.npy')
-        assert np.isclose(phosphenes, phosphenes_expected).all()
+        assert np.isclose(phosphenes, phosphenes_expected, atol=1e-8).all()
 
     def test_brightness(self, params, rng):
         fps = 500

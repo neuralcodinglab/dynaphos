@@ -10,11 +10,10 @@ A fully differentiable and biologically plausible simulation of cortical prosthe
 - See the `examples` directory for simple use cases.
 
 ## Citation
-van der Grinten, M. L., de Ruyter van Steveninck, J., Lozano, A., Pijnacker, L., Rueckauer, B., Roelfsema, P., van Gerven, M., van Wezel, R., Güçlü, U., & Güçlütürk, Y. (2022). Biologically plausible phosphene simulation for the differentiable optimization of visual cortical prostheses. [bioRxiv] https://doi.org/10.1101/2022.12.23.521749 
+van der Grinten, M., van Steveninck, J. D. R., Lozano, A., Pijnacker, L., Rueckauer, B., Roelfsema, P., Marcel van Gerven, Richard van Wezel, Umut Güçlü & Güçlütürk, Y. (2024). Towards biologically plausible phosphene simulation for the differentiable optimization of visual cortical prostheses. eLife, 13, e85812. [https://doi.org/10.7554/eLife.85812](https://doi.org/10.7554/eLife.85812). 
 
 ## Experiments
-For the end-to-end optimization experiments in our BioRxiv publication see [this repository](https://github.com/neuralcodinglab/viseon/tree/dynaphos-paper).
-All other code that was used for the other experiments in our publication can me made available on request.
+For the end-to-end optimization experiments in our publication see [this repository](https://github.com/neuralcodinglab/viseon/tree/dynaphos-paper). The code for the experiments described in our publication (using this simulator) can be found in [this repository](https://github.com/neuralcodinglab/dynaphos-experiments). All other code that was used in our publication can be made available on request.
 
 ## Contact
 Feel free to submit an issue, we're happy to help.

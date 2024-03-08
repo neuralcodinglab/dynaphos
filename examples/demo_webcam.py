@@ -10,6 +10,8 @@ from dynaphos.utils import load_params, load_coordinates_from_yaml, Map
 from dynaphos.cortex_models import \
     get_visual_field_coordinates_from_cortex_full
 
+FILTER = 'canny'  # choose canny or sobel
+THRESHOLD_HIGH = 200  # the high threshold for the canny edge detection
 
 def main(params: dict, in_video: int):
     params['thresholding']['use_threshold'] = False
@@ -39,20 +41,18 @@ def main(params: dict, in_video: int):
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             frame = cv2.GaussianBlur(frame, (3, 3), 0)
 
-            method = params['sampling']['filter']
+            method = FILTER
             if method == 'sobel':
                 processed_img = sobel_processor(frame)
             elif method == 'canny':
-                threshold = params['sampling']['T_high']
-                processed_img = canny_processor(frame, threshold // 2,
-                                                threshold)
+                processed_img = canny_processor(frame, THRESHOLD_HIGH//2, THRESHOLD_HIGH)
             elif method == 'none':
                 processed_img = frame
             else:
                 raise ValueError(f"{method} is not a valid filter keyword.")
 
             # Generate phosphenes
-            stim_pattern = simulator.sample_stimulus(processed_img)
+            stim_pattern = simulator.sample_stimulus(processed_img, rescale=True)
             phosphenes = simulator(stim_pattern)
             phosphenes = phosphenes.cpu().numpy() * 255
 
