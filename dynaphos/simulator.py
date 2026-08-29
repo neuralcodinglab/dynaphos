@@ -12,6 +12,12 @@ from dynaphos.utils import (to_tensor, get_data_kwargs, get_truncated_normal,
                             get_deg2pix_coeff, set_deterministic,
                             print_stats, sigmoid, to_numpy, Map)
 
+# Lower bound on the argument of the sqrt size equation. Far below any
+# physical stimulation current, so the forward pass is unaffected; its only
+# purpose is to keep the gradient finite at zero amplitude.
+MIN_SIZE_ARG = 1e-30
+
+
 class State:
     def __init__(self, params: dict, shape: Tuple[int, ...],
                  verbose: Optional[bool] = False):
@@ -145,7 +151,14 @@ class Sigma(State):
         p = self.params['size']
         if p['size_equation'] == 'sqrt':  # Tehovnik 2007
             def f(x):
-                return torch.sqrt(torch.div(x, p['current_spread']))
+                # The derivative of sqrt is infinite at zero, so an electrode
+                # driven to exactly 0 A would emit a NaN gradient that
+                # propagates silently through the whole model while the
+                # forward pass still looks correct. Clamping the argument
+                # keeps the derivative finite and leaves the forward output
+                # unchanged for any physically meaningful current.
+                return torch.sqrt(
+                    torch.div(x, p['current_spread']).clamp_min(MIN_SIZE_ARG))
         elif p['size_equation'] == 'sigmoid':  # Bosking et al., 2017
             def f(x):
                 return 0.5 * p['MD'] * sigmoid(p['slope_size'] *
